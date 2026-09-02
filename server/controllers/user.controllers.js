@@ -1,5 +1,12 @@
 // register controller
 import User from "../models/user.model.js"
+import bcrypt from 'bcrypt'
+import genToken from "../utils/generateToken.js"
+
+
+const cookieOptions = {
+     httpOnly : true
+}
 
 
 export const registerUser = async (req, res) => {
@@ -29,16 +36,29 @@ export const registerUser = async (req, res) => {
             return res.status(409).json({ message: 'User Already Exists' })
         }
 
+        const salt = await bcrypt.genSalt(10)
+
+        console.log(salt)
+
+        const hashedPassword = await bcrypt.hash(password, salt)
+        // We have to talk about rounds
+
 
         const newUser = await User.create({
             name,
             username,
             email,
-            password
+            password: hashedPassword
 
         })
 
-        res.status(201).json({ message: 'User Registred', user: newUser })
+        const token = genToken(newUser._id)
+
+         res.cookie('token' , token , cookieOptions)
+
+
+
+        res.status(201).json({ message: 'User Registered', user: newUser })
 
     } catch (error) {
         res.status(500).json({ message: 'Server crashed', error: error.message })
@@ -49,4 +69,37 @@ export const registerUser = async (req, res) => {
 
 
 
+}
+
+
+
+export const loginUser = async (req, res) => {
+    try {
+        const { email, password } = req.body
+        // abc1234
+
+        if (!email || !password) {
+            return res.status(400).json({ message: 'All fileds Required' })
+        }
+
+        const user = await User.findOne({ email })
+
+        if (!user) {
+            return res.status(404).json({ message: 'User Not Found' })
+        }
+
+        const passwordMatched = await bcrypt.compare(password, user.password)
+
+
+        if (!passwordMatched) {
+            return res.status(401).json({ message: 'Password Did not match' })
+        }
+
+        console.log(passwordMatched)
+
+        res.status(200).json({ message: 'User Logged In' })
+
+    } catch (error) {
+        res.status(500).json({ message: 'Server crashed', error: error.message })
+    }
 }
